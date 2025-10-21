@@ -25,11 +25,6 @@ class TaskProcessor {
 
         // Properly shut down executor and wait
         executor.shutdown();
-        if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
-            System.err.println("Executor did not terminate in time. Forcing shutdown...");
-            executor.shutdownNow();
-        }
-
         return total;
     }
 

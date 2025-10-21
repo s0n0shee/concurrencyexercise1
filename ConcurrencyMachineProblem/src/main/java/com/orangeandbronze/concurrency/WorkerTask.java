@@ -29,12 +29,10 @@ class WorkerTask implements Callable<Integer> {
     }
 
     @Override
-    public Integer call() {
+    public Integer call() throws Exception{
         boolean acquired = false;
         try {
-            // Wait for all tasks to be ready before starting work
             barrier.await();
-
             semaphore.acquire();
             acquired = true;
 
@@ -42,20 +40,17 @@ class WorkerTask implements Callable<Integer> {
             startTimes.add(System.currentTimeMillis());
 
             // increment concurrent counter and update max
-            int cur = currentConcurrent.incrementAndGet();
-            maxConcurrent.updateAndGet(prev -> Math.max(prev, cur));
+            currentConcurrent.incrementAndGet();
+            int cur = currentConcurrent.get();
+            if (cur > maxConcurrent.get()) {
+                maxConcurrent.set(cur);
+            }
 
             Thread.sleep(workMillis);
             counter.increment();
             return 1;
 
-        } catch (InterruptedException | BrokenBarrierException e) {
-            Thread.currentThread().interrupt(); // Important!
-            return 0;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return 0;
-        } finally {
+        }  finally {
             currentConcurrent.decrementAndGet();
             if (acquired) {
                 semaphore.release();
