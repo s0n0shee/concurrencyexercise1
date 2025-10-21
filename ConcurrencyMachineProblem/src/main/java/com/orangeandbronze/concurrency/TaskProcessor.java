@@ -8,26 +8,29 @@ class TaskProcessor {
     // Processes the list of WorkerTask and returns total successful task results
     // BUG: current implementation submits tasks but does not reliably wait for completion
     int processTasks(List<WorkerTask> tasks) throws InterruptedException {
-        ExecutorService executor = Executors.newFixedThreadPool(Math.min(tasks.size(), 10));
+        ExecutorService executor = Executors.newFixedThreadPool(tasks.size());
         List<Future<Integer>> futures = new ArrayList<>();
         for (WorkerTask t : tasks) {
             futures.add(executor.submit(t));
         }
 
         int total = 0;
-        // BUG: simply checking isDone() can miss tasks not yet completed.
         for (Future<Integer> f : futures) {
-                try {
-                    total += f.get();
-                } catch (ExecutionException e) {
-                    // swallow in this buggy version
-                    e.printStackTrace();
-                }
-
+            try {
+                total += f.get(); // Waits for task to finish
+            } catch (ExecutionException e) {
+                e.printStackTrace(); // Better than swallowing
+            }
         }
 
-        // BUG: executor is not properly shutdown/waited upon in all cases.
+        // Properly shut down executor and wait
         executor.shutdown();
+        if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+            System.err.println("Executor did not terminate in time. Forcing shutdown...");
+            executor.shutdownNow();
+        }
+
         return total;
     }
+
 }

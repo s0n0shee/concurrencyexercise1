@@ -29,34 +29,38 @@ class WorkerTask implements Callable<Integer> {
     }
 
     @Override
-    public Integer call() throws Exception {
-
+    public Integer call() {
+        boolean acquired = false;
         try {
-            // BUG: semaphore is acquired but not always released if exceptions occur
-            semaphore.acquire();
-
-            // wait for all tasks to be ready
+            // Wait for all tasks to be ready before starting work
             barrier.await();
 
-            // record start time and do work
+            semaphore.acquire();
+            acquired = true;
+
+
             startTimes.add(System.currentTimeMillis());
 
             // increment concurrent counter and update max
-            currentConcurrent.incrementAndGet();
-            int cur = currentConcurrent.get();
-            if (cur > maxConcurrent.get()) {
-                maxConcurrent.set(cur);
-            }
+            int cur = currentConcurrent.incrementAndGet();
+            maxConcurrent.updateAndGet(prev -> Math.max(prev, cur));
 
             Thread.sleep(workMillis);
             counter.increment();
             return 1;
+
+        } catch (InterruptedException | BrokenBarrierException e) {
+            Thread.currentThread().interrupt(); // Important!
+            return 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return 0;
         } finally {
-            // BUG: if an exception occurs before this point or barrier throws, semaphore may not be released;
-            // trainees should ensure proper release and decrement in a finally block.
-            //Thread.currentThread().interrupt();
             currentConcurrent.decrementAndGet();
-            semaphore.release();
+            if (acquired) {
+                semaphore.release();
+            }
         }
     }
+
 }
